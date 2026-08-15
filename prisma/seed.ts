@@ -109,6 +109,43 @@ async function main() {
     },
   });
 
+  // ---- Note Type: جمله کاربردی من (بانک شخصی، بدون ساخت خودکار کارت) ----
+  // برخلاف بقیه Note Type ها، این یکی موقع ساخته‌شدن هیچ Card ای نمی‌سازه —
+  // چون Template‌اش isActive:false هست (createNote فقط برای Template های
+  // فعال Card می‌سازه). فقط وقتی کاربر صریحاً «تبدیل به فلش‌کارت» بزنه،
+  // NotesCardsService.promoteNoteToCard صدا زده می‌شه و همین Template
+  // (غیرفعال) رو مستقیم برای ساخت Card استفاده می‌کنه.
+  const usefulSentence = await prisma.noteType.upsert({
+    where: { id: "useful_sentence" },
+    update: {},
+    create: {
+      id: "useful_sentence",
+      name: "جمله کاربردی من",
+      isSystem: true,
+      fieldSchema: {
+        fields: [
+          { key: "front", label: "جمله", type: "text", required: true },
+          { key: "examples", label: "مثال‌های کاربرد (چندتایی)", type: "list", required: false },
+          { key: "meaning_en", label: "تعریف انگلیسی (اختیاری)", type: "text", required: false },
+        ],
+      },
+    },
+  });
+
+  await prisma.cardTemplate.upsert({
+    where: { id: "useful_sentence_default" },
+    update: {},
+    create: {
+      id: "useful_sentence_default",
+      noteTypeId: usefulSentence.id,
+      name: "مرور جمله",
+      frontTemplate: "{{front}}{{{examples_html}}}",
+      backTemplate: "{{meaning_en}}",
+      orderIndex: 0,
+      isActive: false, // 🔑 عمداً غیرفعال — نگاه کن به کامنت بالا
+    },
+  });
+
   // ---- بازه‌های پیش‌فرض جعبه‌های لایتنر (global، deckId = null) ----
   const defaultIntervals = [
     { boxNumber: 1, intervalDays: 0 }, // روزانه
@@ -127,7 +164,7 @@ async function main() {
     }
   }
 
-  console.log("✅ Seed کامل شد: 3 Note Type، 3 Card Template، 5 بازه پیش‌فرض جعبه.");
+  console.log("✅ Seed کامل شد: 4 Note Type، 4 Card Template، 5 بازه پیش‌فرض جعبه.");
 }
 
 main()

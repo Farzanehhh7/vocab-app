@@ -122,10 +122,11 @@ export class NotesCardsService {
   }
 
   /** جستجو/فیلتر لغات یک کاربر — پایه Card Browser فاز ۳ */
-  async listNotes(userId: string, opts?: { search?: string; tagName?: string }) {
+  async listNotes(userId: string, opts?: { search?: string; tagName?: string; noteTypeId?: string }) {
     return this.prisma.note.findMany({
       where: {
         userId,
+        ...(opts?.noteTypeId && { noteTypeId: opts.noteTypeId }),
         ...(opts?.search && {
           fieldValues: {
             path: ["front"],
@@ -144,5 +145,99 @@ export class NotesCardsService {
   /** همه لغاتی که یک تگ خاص دارند — دقیقاً همان قابلیت «شبکه‌ای» که در مصاحبه خواسته شد */
   async getNotesByTag(userId: string, tagName: string) {
     return this.listNotes(userId, { tagName });
+  }
+
+  /** کمکی داخلی: Note رو برمی‌گردونه، فقط اگه واقعاً مال همین کاربر باشه */
+  private async getOwnedNote(userId: string, noteId: string) {
+    const note = await this.prisma.note.findUniqueOrThrow({ where: { id: noteId } });
+    if (note.userId !== userId) throw new Error("این لغت متعلق به این کاربر نیست.");
+    return note;
+  }
+
+  /**
+   * ویرایش فیلدهای یک Note (مثلاً متن جمله کاربردی یا تعریف انگلیسی‌اش).
+   * چون fieldValues یک JSON آزاده، فقط Merge می‌کنیم، نه جایگزینی کامل —
+   * تا فیلدهایی که تو همین درخواست نیومدن پاک نشن.
+   */
+  async updateNoteFields(userId: string, noteId: string, fieldValues: Record<string, unknown>) {
+    const note = await this.getOwnedNote(userId, noteId);
+    const merged = { ...(note.fieldValues as Record<string, unknown>), ...fieldValues };
+    return this.prisma.note.update({ where: { id: noteId }, data: { fieldValues: merged } });
+  }
+
+  /** افزودن یک مثال جدید به فیلد آرایه‌ای examples یک Note (بدون پاک‌کردن مثال‌های قبلی) */
+  async addExample(userId: string, noteId: string, example: string) {
+    const note = await this.getOwnedNote(userId, noteId);
+    const current = note.fieldValues as Record<string, unknown>;
+    const examples = Array.isArray(current.examples) ? current.examples : [];
+    return this.prisma.note.update({
+      where: { id: noteId },
+      data: { fieldValues: { ...current, examples: [...examples, example] } },
+    });
+  }
+
+  /** افزودن یک تگ به Note (Upsert روی Tag، طبق همون الگوی createNote) */
+  async addTag(userId: string, noteId: string, tagName: string) {
+    await this.getOwnedNote(userId, noteId); // فقط برای چک مالکیت
+    const tag = await this.prisma.tag.upsert({
+      where: { userId_name: { userId, name: tagName } },
+      update: {},
+      create: { userId, name: tagName },
+    });
+    await this.prisma.noteTag.upsert({
+      where: { noteId_tagId: { noteId, tagId: tag.id } },
+      update: {},
+      create: { noteId, tagId: tag.id },
+    });
+  }
+
+  /** حذف کامل یک Note (و به‌تبع Cascade، هر Card ای که ازش ساخته شده) */
+  async deleteNote(userId: string, noteId: string) {
+    await this.getOwnedNote(userId, noteId);
+    await this.prisma.note.delete({ where: { id: noteId } });
+  }
+
+  /**
+   * 🔑 «تبدیل به فلش‌کارت» — طبق DECISIONS.md ورودی ۰۱۲. Note هایی مثل
+   * useful_sentence با Template غیرفعال ساخته می‌شن (نگاه کن به seed.ts)،
+   * پس createNote عادی هیچ Card ای براشون نمی‌سازه. این متد مستقیم از
+   * روی همون Template(های) NoteType (فعال یا نه) Card واقعی می‌سازه —
+   * دقیقاً همون لحظه‌ای که کاربر صریحاً تصمیم می‌گیره.
+   */
+  async promoteNoteToCard(userId: string, noteId: string, deckId: string) {
+    const note = await this.getOwnedNote(userId, noteId);
+    const noteType = await this.prisma.noteType.findUniqueOrThrow({
+      where: { id: note.noteTypeId },
+      include: { templates: true },
+    });
+
+    return this.prisma.$transaction(async (tx) => {
+      const cards = [];
+      for (const template of noteType.templates) {
+        const existing = await tx.card.findUnique({
+          where: { noteId_templateId: { noteId, templateId: template.id } },
+        });
+        if (existing) continue; // از قبل کارت ساخته — دوباره نساز
+        const card = await tx.card.create({
+          data: {
+            noteId,
+            templateId: template.id,
+            deckId,
+            userId,
+            currentBox: 1,
+            status: "active",
+            nextReviewAt: new Date(),
+          },
+        });
+        cards.push(card);
+      }
+      if (cards.length > 0) {
+        await tx.deck.update({
+          where: { id: deckId },
+          data: { cardCountCache: { increment: cards.length } },
+        });
+      }
+      return { cards };
+    });
   }
 }
