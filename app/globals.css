@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+/*
+ * سیستم طراحی — یه پالت هدفمند و غیرکلیشه‌ای:
+ * برند = فیروزه‌ای تیره (تمرکز/آرامش)، لهجه = کهربایی گرم (Streak/انگیزه)،
+ * پس‌زمینه = خاکستری گرم خیلی روشن (نه سفید خشک، نه کرم کلیشه‌ای).
+ * گرادیان جعبه‌های لایتنر معنادار است: قرمز (نیاز فوری) → فیروزه‌ای (نزدیک به یادگیری کامل).
+ */
+:root {
+  --background: hsl(40, 15%, 97%);
+  --surface: #ffffff;
+  --foreground: hsl(200, 15%, 15%);
+  --muted: hsl(200, 10%, 45%);
+  --border: hsl(40, 10%, 88%);
+
+  --brand: hsl(190, 55%, 26%);
+  --brand-foreground: #ffffff;
+  --accent: hsl(38, 92%, 50%);
+
+  --box-1: hsl(3, 72%, 58%);
+  --box-2: hsl(25, 80%, 56%);
+  --box-3: hsl(45, 85%, 52%);
+  --box-4: hsl(150, 38%, 46%);
+  --box-5: hsl(178, 45%, 36%);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-accent: var(--accent);
+  --color-box-1: var(--box-1);
+  --color-box-2: var(--box-2);
+  --color-box-3: var(--box-3);
+  --color-box-4: var(--box-4);
+  --color-box-5: var(--box-5);
+  --font-sans: var(--font-vazirmatn);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+@layer components {
+  .input {
+    @apply w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20;
+  }
+}
+
+/* ----- انیمیشن Flip فلش‌کارت — عنصر امضادار صفحه مرور ----- */
+.flip-scene {
+  perspective: 1600px;
+}
+
+.flip-card {
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.5s cubic-bezier(0.4, 0.2, 0.2, 1);
+}
+
+.flip-card.is-flipped {
+  transform: rotateY(180deg);
+}
+
+.flip-face {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.flip-face-back {
+  position: absolute;
+  inset: 0;
+  transform: rotateY(180deg);
+}

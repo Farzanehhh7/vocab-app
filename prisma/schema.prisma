@@ -1,0 +1,192 @@
+// ==========================================================
+// Prisma Schema — فاز ۱ و ۲ نقشه راه (زیرساخت + هسته لایتنر)
+// مدل Note/Card/Template از همان ابتدا، طبق تصمیم DECISIONS.md
+// ==========================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ----------------------------------------------------------
+// کاربران
+// (احراز هویت واقعی توسط Clerk انجام می‌شود؛ این جدول فقط
+// داده‌های اپلیکیشنی مرتبط با کاربر را نگه می‌دارد و با
+// clerkId به کاربر Clerk وصل می‌شود — با Webhook همگام می‌شود)
+// ----------------------------------------------------------
+model User {
+  id                    String    @id @default(uuid())
+  clerkId               String    @unique
+  email                 String    @unique
+  username              String?   @unique
+  currentStreak         Int       @default(0)
+  longestStreak         Int       @default(0)
+  lastActivityDate      DateTime?
+  isPremium             Boolean   @default(false)
+  preferAdvancedGrading Boolean   @default(false) // حالت ۴ دکمه‌ای Again/Hard/Good/Easy
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  decks      Deck[]
+  notes      Note[]
+  tags       Tag[]
+  reviewLogs ReviewLog[]
+
+  @@map("users")
+}
+
+// ----------------------------------------------------------
+// دسته‌های لایتنر (Deck)
+// ----------------------------------------------------------
+model Deck {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  examContext    String   @default("ielts") // ielts | toefl | gre — آماده گسترش آینده
+  name           String
+  isDefault      Boolean  @default(false)
+  cardCountCache Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  cards        Card[]
+  boxIntervals LeitnerBoxInterval[]
+
+  @@map("decks")
+}
+
+// تنظیمات بازه هر جعبه (روزانه, ۲, ۴, ۸, ۱۶ روز) — قابل شخصی‌سازی به‌ازای هر Deck
+model LeitnerBoxInterval {
+  id           String @id @default(uuid())
+  deckId       String?
+  deck         Deck?  @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  boxNumber    Int
+  intervalDays Int
+
+  @@map("leitner_box_intervals")
+}
+
+// ----------------------------------------------------------
+// سیستم Note/Card سبک Anki (بخش ۱۲ سند معماری)
+// ----------------------------------------------------------
+
+// قالب محتوا — مثلاً "واژه ساده"، "Cloze". برای MVP فقط ۲ مورد Seed می‌شود.
+model NoteType {
+  id          String   @id @default(uuid())
+  name        String
+  fieldSchema Json // تعریف فیلدها، نگاه کنید به بخش ۱۲.۲ سند معماری
+  isSystem    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  templates CardTemplate[]
+  notes     Note[]
+
+  @@map("note_types")
+}
+
+// نحوه رندر کارت از روی یک Note (می‌تواند چند Template برای یک NoteType باشد)
+model CardTemplate {
+  id            String   @id @default(uuid())
+  noteTypeId    String
+  noteType      NoteType @relation(fields: [noteTypeId], references: [id], onDelete: Cascade)
+  name          String
+  frontTemplate String
+  backTemplate  String
+  orderIndex    Int      @default(0)
+  isActive      Boolean  @default(true)
+
+  cards Card[]
+
+  @@map("card_templates")
+}
+
+// محتوای خام (یک بار ساخته می‌شود، می‌تواند چند Card از رویش بسازد)
+model Note {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  noteTypeId  String
+  noteType    NoteType @relation(fields: [noteTypeId], references: [id])
+  fieldValues Json // {"front":"aubergine","meaning_fa":"بادمجان","example_en":"..."}
+  source      String   @default("manual") // manual | ai_generated | book_import
+  createdAt   DateTime @default(now())
+
+  cards Card[]
+  tags  NoteTag[]
+
+  @@map("notes")
+}
+
+// ----------------------------------------------------------
+// تگ‌بندی معنایی — تصمیم ۰۰۱ در DECISIONS.md
+// روی سطح Note (نه Card) تا مستقل از جعبه/دسته قابل بازیابی باشد
+// ----------------------------------------------------------
+model Tag {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name   String
+
+  notes NoteTag[]
+
+  @@unique([userId, name])
+  @@map("tags")
+}
+
+model NoteTag {
+  noteId String
+  note   Note   @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  tagId  String
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, tagId])
+  @@map("note_tags")
+}
+
+// ----------------------------------------------------------
+// کارت — هر ردیف یک کارت مستقل و قابل‌مرور در جعبه لایتنر
+// ----------------------------------------------------------
+model Card {
+  id             String       @id @default(uuid())
+  noteId         String
+  note           Note         @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  templateId     String
+  template       CardTemplate @relation(fields: [templateId], references: [id])
+  deckId         String
+  deck           Deck         @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  userId         String // denormalized برای سرعت کوئری صف مرور
+  currentBox     Int          @default(1)
+  status         String       @default("active") // active | learned | suspended
+  isFlagged      Boolean      @default(false)
+  nextReviewAt   DateTime     @default(now())
+  lastReviewedAt DateTime?
+  correctStreak  Int          @default(0)
+  totalReviews   Int          @default(0)
+  createdAt      DateTime     @default(now())
+
+  reviewLogs ReviewLog[]
+
+  @@unique([noteId, templateId])
+  @@index([userId, nextReviewAt]) // 🔑 مهم‌ترین ایندکس کل پروژه — صف مرور روزانه
+  @@map("cards")
+}
+
+// تاریخچه هر مرور — منبع آمار آینده + قابلیت Undo
+model ReviewLog {
+  id           String   @id @default(uuid())
+  cardId       String
+  card         Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  grade        String // again | hard | good | easy
+  simpleResult String // known | unknown  (نگاشت‌شده از grade، برای UI ساده دو دکمه‌ای)
+  boxBefore    Int
+  boxAfter     Int
+  reviewedAt   DateTime @default(now())
+
+  @@index([userId, reviewedAt])
+  @@map("review_logs")
+}
