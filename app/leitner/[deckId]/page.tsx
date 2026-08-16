@@ -48,6 +48,9 @@ export default async function DeckDashboardPage({
           <Link href="/leitner/sentences" className="text-sm text-brand underline">
             جملات کاربردی من
           </Link>
+          <Link href="/library" className="text-sm text-brand underline">
+            کتابخانه
+          </Link>
         </div>
       </div>
 

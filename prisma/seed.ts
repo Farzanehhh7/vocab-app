@@ -149,6 +149,89 @@ async function main() {
     },
   });
 
+  // ---- کتابخانه محتوا: یک منبع نمونه + یک درس (Unit 40) ----
+  // فقط یک درس دستی برای شروع، تا مطمئن بشیم UI جواب می‌ده قبل از
+  // سرمایه‌گذاری روی محتوای بیشتر (طبق DECISIONS.md ورودی ۰۱۲).
+  const vocabInUse = await prisma.source.upsert({
+    where: { id: "vocab_in_use" },
+    update: {},
+    create: { id: "vocab_in_use", title: "English Vocabulary in Use", type: "book", level: "intermediate" },
+  });
+
+  await prisma.lesson.upsert({
+    where: { id: "vocab_in_use_unit_40" },
+    update: {},
+    create: {
+      id: "vocab_in_use_unit_40",
+      sourceId: vocabInUse.id,
+      orderIndex: 40,
+      title: "Business and finance",
+      unitCode: "Unit 40",
+      contentBlocks: [
+        { type: "section_label", text: "A" },
+        {
+          type: "paragraph",
+          text: "Rise and fall. These verbs describe trends [movements] in sales [how much you sell], prices, etc.",
+        },
+        {
+          type: "paragraph",
+          text: "When sales or prices rise / go up / increase, they can do it in different ways:",
+        },
+        {
+          type: "paragraph",
+          text:
+            "They can rise slightly [a bit].\nThey can rise gradually [slowly over a long period].\nThey can rise sharply [quickly and by a large amount].",
+        },
+        {
+          type: "paragraph",
+          text:
+            "The opposite can also happen. Prices or sales can fall / go down / decrease slightly, gradually or sharply. If prices don't rise or fall, they stay the same.",
+        },
+        {
+          type: "paragraph",
+          text:
+            "We use certain prepositions to say by how much something rises or falls. The price has risen by 10 pence. Sales fell from 8,000 units to 6,500 units.",
+        },
+        {
+          type: "paragraph",
+          text:
+            "Rise/increase and fall/decrease can also be used as nouns, with certain prepositions. There's been a gradual rise in prices. We've seen a slight increase in profit. There's been a sharp fall in sales. Profits were £5 million, which is a decrease of 10%.",
+        },
+        {
+          type: "language_help",
+          title: "Language help",
+          text:
+            "Profit is the money you receive from your business after you have paid all your costs (opp loss). Last year the company made a profit of €2 million but this year they could make a loss.",
+        },
+      ],
+      vocabItems: {
+        create: [
+          { term: "rise / increase", meaningFa: "افزایش پیدا کردن", exampleEn: "Sales rose sharply last quarter.", orderIndex: 0 },
+          { term: "fall / decrease", meaningFa: "کاهش پیدا کردن", exampleEn: "Profits fell slightly in March.", orderIndex: 1 },
+          { term: "gradually", meaningFa: "به‌تدریج", exampleEn: "The economy improved gradually over five years.", orderIndex: 2 },
+          { term: "sharply", meaningFa: "به‌شدت، ناگهانی", exampleEn: "Oil prices rose sharply after the announcement.", orderIndex: 3 },
+          { term: "stay the same", meaningFa: "ثابت ماندن", exampleEn: "Unemployment rates stayed the same this year.", orderIndex: 4 },
+          { term: "profit / loss", meaningFa: "سود / زیان", exampleEn: "The company made a profit of £2 million.", orderIndex: 5 },
+        ],
+      },
+    },
+  });
+
+  // ---- دسته‌بندی موضوعی («گلچین لغات پرکاربرد») ----
+  const businessCategory = await prisma.category.upsert({
+    where: { id: "business_finance" },
+    update: {},
+    create: { id: "business_finance", name: "Business & Finance", slug: "business-finance" },
+  });
+  const unit40Vocab = await prisma.lessonVocab.findMany({ where: { lessonId: "vocab_in_use_unit_40" } });
+  for (const vocab of unit40Vocab) {
+    await prisma.lessonVocabCategory.upsert({
+      where: { lessonVocabId_categoryId: { lessonVocabId: vocab.id, categoryId: businessCategory.id } },
+      update: {},
+      create: { lessonVocabId: vocab.id, categoryId: businessCategory.id },
+    });
+  }
+
   // ---- بازه‌های پیش‌فرض جعبه‌های لایتنر (global، deckId = null) ----
   const defaultIntervals = [
     { boxNumber: 1, intervalDays: 0 }, // روزانه
@@ -167,7 +250,9 @@ async function main() {
     }
   }
 
-  console.log("✅ Seed کامل شد: 4 Note Type، 4 Card Template، 5 بازه پیش‌فرض جعبه.");
+  console.log(
+    "✅ Seed کامل شد: 4 Note Type، 4 Card Template، 1 منبع کتابخانه (Unit 40 + 1 دسته‌بندی)، 5 بازه پیش‌فرض جعبه."
+  );
 }
 
 main()
