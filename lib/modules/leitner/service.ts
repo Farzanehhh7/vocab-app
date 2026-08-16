@@ -45,6 +45,49 @@ function pickRandomSubset<T>(items: T[], count: number): T[] {
   return shuffled.slice(0, Math.min(count, items.length));
 }
 
+/** آیا رشته حداقل یک نشانه‌گذاری Cloze استاندارد (`{{c1::...}}`) داره؟ */
+function hasClozeMarkup(text: string): boolean {
+  return /\{\{c\d+::[^}]+\}\}/.test(text);
+}
+
+/**
+ * فیلد `text_with_cloze` (نوع Note: cloze_sentence) رو به دو نسخه HTML امن
+ * تبدیل می‌کنه — قبلاً `frontTemplate` مستقیم `{{text_with_cloze}}` رو
+ * رندر می‌کرد، یعنی پاسخ هم تو جلوی کارت خام دیده می‌شد (اصلاً جای‌خالی
+ * نبود). این تابع درستش می‌کنه:
+ *   - cloze_front_html: بخش داخل {{c1::...}} با یه جای‌خالی «[...]» جایگزین می‌شه
+ *   - cloze_back_html:  همون بخش، این‌بار آشکار و برجسته (برای پشت کارت)
+ * متن اطراف Escape می‌شه (جلوگیری از XSS)؛ بقیه فیلدها دست‌نخورده می‌مونن.
+ */
+function buildClozeFields(fieldValues: Record<string, unknown>): Record<string, unknown> {
+  const text = fieldValues.text_with_cloze;
+  if (typeof text !== "string" || !hasClozeMarkup(text)) {
+    return fieldValues;
+  }
+
+  const pattern = /\{\{c\d+::([^}]+)\}\}/g;
+  let frontHtml = "";
+  let backHtml = "";
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text)) !== null) {
+    const before = text.slice(lastIndex, match.index);
+    frontHtml += escapeHtml(before);
+    backHtml += escapeHtml(before);
+
+    frontHtml +=
+      '<span style="display:inline-block;padding:0 6px;border-bottom:2px solid var(--brand,#0f5c66);font-weight:700;">[...]</span>';
+    backHtml += `<span style="font-weight:800;color:var(--brand,#0f5c66);text-decoration:underline;text-underline-offset:3px;">${escapeHtml(match[1])}</span>`;
+
+    lastIndex = match.index + match[0].length;
+  }
+  frontHtml += escapeHtml(text.slice(lastIndex));
+  backHtml += escapeHtml(text.slice(lastIndex));
+
+  return { ...fieldValues, cloze_front_html: frontHtml, cloze_back_html: backHtml };
+}
+
 /**
  * 🔑 جلوگیری از حفظ‌کردن مکانیکی (طبق DECISIONS.md ورودی ۰۰۸):
  * اگر Note یک فیلد آرایه‌ای «examples» داشته باشه، هر بار مرور، یک زیرمجموعه
@@ -52,22 +95,24 @@ function pickRandomSubset<T>(items: T[], count: number): T[] {
  * برمی‌گردونه تا تو Template با {{{examples_html}}} (خام) جای‌گذاری بشه.
  */
 export function buildDynamicFields(fieldValues: Record<string, unknown>): Record<string, unknown> {
-  const examples = fieldValues.examples;
-  if (!Array.isArray(examples) || examples.length === 0) {
-    return fieldValues;
+  let result = fieldValues;
+
+  const examples = result.examples;
+  if (Array.isArray(examples) && examples.length > 0) {
+    const selected = pickRandomSubset(
+      examples.filter((e): e is string => typeof e === "string" && e.trim().length > 0),
+      EXAMPLES_SHOWN_PER_REVIEW
+    );
+    const examplesHtml =
+      '<ul style="text-align:right;font-size:14px;color:var(--muted,#6b7280);margin-top:14px;padding-inline-start:20px;line-height:1.9;">' +
+      selected.map((ex) => `<li>${escapeHtml(ex)}</li>`).join("") +
+      "</ul>";
+    result = { ...result, examples_html: examplesHtml };
   }
 
-  const selected = pickRandomSubset(
-    examples.filter((e): e is string => typeof e === "string" && e.trim().length > 0),
-    EXAMPLES_SHOWN_PER_REVIEW
-  );
+  result = buildClozeFields(result);
 
-  const examplesHtml =
-    '<ul style="text-align:right;font-size:14px;color:var(--muted,#6b7280);margin-top:14px;padding-inline-start:20px;line-height:1.9;">' +
-    selected.map((ex) => `<li>${escapeHtml(ex)}</li>`).join("") +
-    "</ul>";
-
-  return { ...fieldValues, examples_html: examplesHtml };
+  return result;
 }
 
 /** محاسبه جعبه بعدی بر اساس grade — طبق بخش ۵.۲ سند معماری */

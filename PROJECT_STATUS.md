@@ -14,7 +14,11 @@
 
 - احراز هویت کامل (Clerk) + همگام‌سازی خودکار کاربر با دیتابیس (Webhook + Fallback)
 - CRUD کامل Deck + چند Deck واقعی با سوییچر
-- مدل Note/Card/Template — ۳ Note Type: `basic_word`, `cloze_sentence` (بدون UI هنوز)، `word_with_examples`
+- مدل Note/Card/Template — ۳ Note Type: `basic_word`, `cloze_sentence`، `word_with_examples`
+- 🆕 **UI و رندر کامل Cloze**: فرم افزودن بدون نیاز به یادگیری نحو
+  `{{c1::...}}` (`AddClozeModal`) + رندر واقعی جای‌خالی موقع مرور (جلو:
+  `[...]`، پشت: پاسخ برجسته) — قبلاً فقط Seed بود، الان واقعاً کار می‌کنه
+  (طبق DECISIONS.md ورودی ۰۱۱)
 - 🆕 **بانک «جملات کاربردی من»** (`/leitner/sentences`): ذخیره جمله بدون
   ساخت خودکار کارت، ویرایش/افزودن مثال/تگ به‌مرور زمان، دکمه صریح «تبدیل
   به فلش‌کارت» (طبق DECISIONS.md ورودی ۰۱۰)

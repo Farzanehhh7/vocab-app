@@ -60,13 +60,16 @@ async function main() {
 
   await prisma.cardTemplate.upsert({
     where: { id: "cloze_default" },
-    update: {},
+    update: {
+      frontTemplate: "{{{cloze_front_html}}}",
+      backTemplate: "{{{cloze_back_html}}}<hr>{{meaning_fa}}",
+    },
     create: {
       id: "cloze_default",
       noteTypeId: cloze.id,
       name: "Cloze",
-      frontTemplate: "{{text_with_cloze}}",
-      backTemplate: "{{meaning_fa}}",
+      frontTemplate: "{{{cloze_front_html}}}",
+      backTemplate: "{{{cloze_back_html}}}<hr>{{meaning_fa}}",
       orderIndex: 0,
       isActive: true,
     },
