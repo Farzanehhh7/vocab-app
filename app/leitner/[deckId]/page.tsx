@@ -51,6 +51,9 @@ export default async function DeckDashboardPage({
           <Link href="/library" className="text-sm text-brand underline">
             کتابخانه
           </Link>
+          <Link href="/write" className="text-sm text-brand underline">
+            دستیار رایتینگ
+          </Link>
         </div>
       </div>
 

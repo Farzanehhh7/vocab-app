@@ -26,7 +26,7 @@ const EXAMPLES_SHOWN_PER_REVIEW = 2;
  * متن اصلی هر Note رو برای تلفظ صوتی (Web Speech API) استخراج می‌کند —
  * مستقل از نوع Note Type (واژه ساده، Cloze، و غیره در آینده).
  */
-function extractPrimaryText(fieldValues: Record<string, unknown>): string {
+export function extractPrimaryText(fieldValues: Record<string, unknown>): string {
   const candidateKeys = ["front", "text_with_cloze", "collocation"];
   for (const key of candidateKeys) {
     const value = fieldValues[key];
