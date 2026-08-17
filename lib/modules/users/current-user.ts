@@ -1,4 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
+import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -6,8 +7,15 @@ import { prisma } from "@/lib/prisma";
  * اگر کاربر با این clerkId هنوز در دیتابیس ما نبود (مثلاً وب‌هوک هنوز
  * نرسیده بود)، این تابع به‌عنوان fallback خودش می‌سازدش تا هیچ درخواستی
  * fail نشود.
+ *
+ * 🔑 با React.cache() پیچیده شده: بدون این، چون خیلی جاها (layout برای
+ * StreakBadge، هر Page، هر Route Handler) این تابع رو صدا می‌زنن، هر بار
+ * یه Query جدید به دیتابیس می‌زد — رو Neon (که هر Query می‌تونه Latency
+ * قابل‌توجه داشته باشه) این یعنی همون صفحه چندبار همون Query یکسان رو
+ * تکرار می‌کرد. cache() تضمین می‌کنه در یک Request/Render، فقط یه‌بار
+ * واقعاً به دیتابیس بزنه؛ صداهای بعدی همون نتیجه Cache‌شده رو برمی‌گردونن.
  */
-export async function getCurrentUser() {
+export const getCurrentUser = cache(async () => {
   const { userId: clerkId } = await auth();
   if (!clerkId) return null;
 
@@ -28,4 +36,4 @@ export async function getCurrentUser() {
   }
 
   return user;
-}
+});
