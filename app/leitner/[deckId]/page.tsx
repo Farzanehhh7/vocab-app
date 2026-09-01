@@ -7,6 +7,7 @@ import { LeitnerService } from "@/lib/modules/leitner/service";
 import { BoxCard, toPersianDigits } from "@/components/leitner/BoxCard";
 import { AddWordModal } from "@/components/leitner/AddWordModal";
 import { AddWordWithExamplesModal } from "@/components/leitner/AddWordWithExamplesModal";
+import { AddClozeModal } from "@/components/leitner/AddClozeModal";
 import { ImportFileModal } from "@/components/leitner/ImportFileModal";
 import { CreateDeckModal } from "@/components/leitner/CreateDeckModal";
 import { DeckSwitcher } from "@/components/leitner/DeckSwitcher";
@@ -44,6 +45,15 @@ export default async function DeckDashboardPage({
           <Link href="/leitner/tags" className="text-sm text-brand underline">
             شبکه لغات (تگ‌ها)
           </Link>
+          <Link href="/leitner/sentences" className="text-sm text-brand underline">
+            جملات کاربردی من
+          </Link>
+          <Link href="/library" className="text-sm text-brand underline">
+            کتابخانه
+          </Link>
+          <Link href="/write" className="text-sm text-brand underline">
+            دستیار رایتینگ
+          </Link>
         </div>
       </div>
 
@@ -57,6 +67,7 @@ export default async function DeckDashboardPage({
         <div className="flex items-center gap-2">
           <ImportFileModal deckId={deck.id} />
           <AddWordWithExamplesModal deckId={deck.id} />
+          <AddClozeModal deckId={deck.id} />
           <AddWordModal deckId={deck.id} />
         </div>
       </div>

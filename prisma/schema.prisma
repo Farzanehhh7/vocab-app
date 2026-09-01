@@ -35,6 +35,7 @@ model User {
   notes      Note[]
   tags       Tag[]
   reviewLogs ReviewLog[]
+  highlights Highlight[]
 
   @@map("users")
 }
@@ -189,4 +190,104 @@ model ReviewLog {
 
   @@index([userId, reviewedAt])
   @@map("review_logs")
+}
+
+// ----------------------------------------------------------
+// کتابخانه محتوا (ماژول library) — جدا از سیستم Note/Card عمداً، چون
+// متن درس (پاراگراف، Language Help) اصلاً شکل فلش‌کارت نداره. Note.userId
+// تو این پروژه اجباریه، پس محتوای مشترک (متن درس، لغات رسمی) نمی‌تونه
+// از مدل Note استفاده کنه — کاملاً جدا و فقط‌خواندنی برای همه کاربراست.
+// Highlight شخصیه و userId داره. طبق DECISIONS.md ورودی ۰۱۲.
+// ----------------------------------------------------------
+
+// منبع محتوا — مثلاً کتاب "English Vocabulary in Use"
+model Source {
+  id            String   @id @default(uuid())
+  title         String
+  type          String   @default("book") // book | podcast | novel | magazine
+  publisher     String?
+  level         String?
+  coverImageUrl String?
+  createdAt     DateTime @default(now())
+
+  lessons Lesson[]
+
+  @@map("sources")
+}
+
+// یک درس/Unit از یک منبع
+model Lesson {
+  id         String  @id @default(uuid())
+  sourceId   String
+  source     Source  @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  orderIndex Int
+  title      String
+  unitCode   String?
+
+  // آرایه بلوک‌های محتوا، نه یک HTML خام — تا Highlight (که به blockIndex +
+  // آفست کاراکتر درون متن *ساده* همون بلوک اشاره می‌کنه) با هر تغییر جزئی
+  // فرمت خراب نشه. نمونه: {"type":"paragraph","text":"..."} یا
+  // {"type":"language_help","title":"...","text":"..."}
+  contentBlocks Json
+
+  createdAt DateTime @default(now())
+
+  vocabItems LessonVocab[]
+  highlights Highlight[]
+
+  @@map("lessons")
+}
+
+// لغات رسمی/معرفی‌شده در یک درس — مشترک بین همه، فقط‌خواندنی
+model LessonVocab {
+  id         String  @id @default(uuid())
+  lessonId   String
+  lesson     Lesson  @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  term       String
+  meaningFa  String
+  exampleEn  String?
+  orderIndex Int     @default(0)
+
+  categories LessonVocabCategory[]
+
+  @@map("lesson_vocab")
+}
+
+// Highlight/Underline شخصی کاربر روی متن یک درس — سبک، فقط یادآوری بصری
+model Highlight {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId    String
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  blockIndex  Int // اندیس بلوک داخل contentBlocks
+  startOffset Int // آفست کاراکتر شروع درون متن ساده همون بلوک
+  endOffset   Int
+  style       String // color-yellow | color-green | color-blue | color-pink | underline
+  createdAt   DateTime @default(now())
+
+  @@index([userId, lessonId])
+  @@map("highlights")
+}
+
+// دسته‌بندی موضوعی مشترک («گلچین لغات پرکاربرد») — سراسری، جدا از Tag
+// شخصی (که userId اجباری داره). طبق تحقیق روی سایت واقعی مرجع.
+model Category {
+  id   String @id @default(uuid())
+  name String
+  slug String @unique
+
+  vocabItems LessonVocabCategory[]
+
+  @@map("categories")
+}
+
+model LessonVocabCategory {
+  lessonVocabId String
+  lessonVocab   LessonVocab @relation(fields: [lessonVocabId], references: [id], onDelete: Cascade)
+  categoryId    String
+  category      Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([lessonVocabId, categoryId])
+  @@map("lesson_vocab_categories")
 }

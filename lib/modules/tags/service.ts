@@ -80,4 +80,43 @@ export class TagsService {
       })),
     }));
   }
+
+  /**
+   * مثل getNotesByTag، ولی برای چند تگ هم‌زمان (منطق OR: لغتی که حداقل
+   * یکی از تگ‌های انتخابی رو داشته باشه). این دقیقاً همون قابلیتیه که
+   * کامنت بالای getNotesByTag پیش‌بینی کرده بود: «همه کالوکیشن‌های تگ
+   * environment رو برای رایتینگ بیار» — حالا برای چند تگ با هم.
+   */
+  async getNotesByTags(userId: string, tagNames: string[]): Promise<TaggedNote[]> {
+    if (tagNames.length === 0) return [];
+
+    const noteTags = await this.prisma.noteTag.findMany({
+      where: { tag: { userId, name: { in: tagNames } } },
+      include: {
+        note: {
+          include: {
+            cards: { include: { deck: true } },
+            tags: { include: { tag: true } },
+          },
+        },
+      },
+    });
+
+    const seen = new Map<string, TaggedNote>();
+    for (const nt of noteTags) {
+      if (seen.has(nt.note.id)) continue;
+      seen.set(nt.note.id, {
+        noteId: nt.note.id,
+        fieldValues: nt.note.fieldValues as Record<string, unknown>,
+        tags: nt.note.tags.map((t) => t.tag.name),
+        cards: nt.note.cards.map((c) => ({
+          cardId: c.id,
+          deckName: c.deck.name,
+          currentBox: c.currentBox,
+          status: c.status,
+        })),
+      });
+    }
+    return [...seen.values()];
+  }
 }

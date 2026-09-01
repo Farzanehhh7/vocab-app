@@ -108,3 +108,54 @@ describe("buildDynamicFields — جلوگیری از حفظ‌کردن مکان�
     expect(seenCombinations.size).toBeGreaterThan(1);
   });
 });
+
+describe("buildDynamicFields — پردازش Cloze (جای‌خالی)", () => {
+  it("وقتی text_with_cloze نشانه‌گذاری {{cN::...}} نداره، دست‌نخورده می‌مونه", () => {
+    const input = { text_with_cloze: "یه متن ساده بدون جای‌خالی", meaning_fa: "..." };
+    const result = buildDynamicFields(input);
+    expect(result.cloze_front_html).toBeUndefined();
+    expect(result.cloze_back_html).toBeUndefined();
+  });
+
+  it("جلو: بخش داخل {{c1::...}} با جای‌خالی [...] جایگزین می‌شه، نه پاسخ واقعی", () => {
+    const input = { text_with_cloze: "She {{c1::tend to}} forget things.", meaning_fa: "عادت دارد" };
+    const result = buildDynamicFields(input) as { cloze_front_html: string };
+    expect(result.cloze_front_html).not.toContain("tend to");
+    expect(result.cloze_front_html).toContain("[...]");
+    expect(result.cloze_front_html).toContain("She");
+    expect(result.cloze_front_html).toContain("forget things.");
+  });
+
+  it("پشت: پاسخ واقعی آشکار و برجسته نشون داده می‌شه", () => {
+    const input = { text_with_cloze: "She {{c1::tend to}} forget things.", meaning_fa: "عادت دارد" };
+    const result = buildDynamicFields(input) as { cloze_back_html: string };
+    expect(result.cloze_back_html).toContain("tend to");
+  });
+
+  it("متن اطراف Cloze رو Escape می‌کنه (جلوگیری از XSS)", () => {
+    const input = { text_with_cloze: "<b>She</b> {{c1::tend to}} forget.", meaning_fa: "..." };
+    const result = buildDynamicFields(input) as { cloze_front_html: string; cloze_back_html: string };
+    expect(result.cloze_front_html).not.toContain("<b>");
+    expect(result.cloze_back_html).not.toContain("<b>");
+    expect(result.cloze_front_html).toContain("&lt;b&gt;");
+  });
+
+  it("چند Cloze در یک جمله (c1 و c2) رو هم درست پردازش می‌کنه", () => {
+    const input = { text_with_cloze: "{{c1::He}} {{c2::hesitated}} before answering.", meaning_fa: "..." };
+    const result = buildDynamicFields(input) as { cloze_front_html: string; cloze_back_html: string };
+    const blankCount = (result.cloze_front_html.match(/\[\.\.\.\]/g) ?? []).length;
+    expect(blankCount).toBe(2);
+    expect(result.cloze_back_html).toContain("He");
+    expect(result.cloze_back_html).toContain("hesitated");
+  });
+
+  it("با فیلدهای دیگه (مثل examples) هم‌زمان و بدون تداخل کار می‌کنه", () => {
+    const input = {
+      text_with_cloze: "She {{c1::tend to}} forget things.",
+      examples: ["یه مثال"],
+    };
+    const result = buildDynamicFields(input) as { cloze_front_html: string; examples_html: string };
+    expect(result.cloze_front_html).toContain("[...]");
+    expect(result.examples_html).toContain("یه مثال");
+  });
+});
